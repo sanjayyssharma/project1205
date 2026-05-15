@@ -1,5 +1,6 @@
-# Backend API host (Render, Fly, Railway, etc.) — install from repo root:
-#   pip install -r requirements-api.txt
+# Backend API host (Railway, Render, Fly, etc.) — install from repo root:
+#   pip install -r requirements-api.txt && pip install -e .
+# Start: see Procfile (uvicorn on $PORT) for Railway.
 # Ship restaurants.parquet with the service or set RESTAURANT_SNAPSHOT_PATH.
 pydantic-settings>=2.2.0
 datasets>=2.16.0

@@ -101,11 +101,12 @@ The bundled rate limiter is **in-memory per process**. Multiple replicas do **no
 
 ## Phase 7 — Streamlit UI
 
-- **Deploy runbook:** [`streamlit-deploy.md`](./streamlit-deploy.md) (GitHub → API host → Streamlit Cloud, secrets, smoke tests).
-- **Package:** `streamlit_app/` — run `streamlit run streamlit_app/app.py` (or `make streamlit` on port **8501** after `pip install -r requirements.txt` or `pip install -e ".[streamlit]"`).
-- **Backend URL:** set **`BACKEND_URL`** or **`API_BASE_URL`** in the environment (or Streamlit Cloud secrets) to the FastAPI origin, e.g. `https://your-api.example.com`. Default local: `http://127.0.0.1:8000`.
-- **CORS:** the default integration uses **server-side `httpx`** from the Streamlit process to the API, so the **browser never calls FastAPI directly** and you typically **do not** need to allow the Streamlit origin in `CORS_ORIGINS`.
-- **Health:** use the sidebar “Check health” or `curl {BACKEND_URL}/health` before demos.
+- **Deploy runbook:** [`streamlit-deploy.md`](./streamlit-deploy.md) — **recommended:** [Railway](https://railway.app) (FastAPI) + [Streamlit Cloud](https://share.streamlit.io) (UI); optional all-in-one Streamlit.
+- **Railway:** repo root, **`Procfile`** + `requirements-api.txt`; set `GROQ_API_KEY`, `RESTAURANT_SNAPSHOT_PATH` on the service.
+- **Streamlit (split):** Secrets `BACKEND_MODE=http`, `BACKEND_URL=https://…up.railway.app` (no Groq key in Streamlit).
+- **Package:** `streamlit_app/` — `streamlit run streamlit_app/app.py` (or `make streamlit`).
+- **CORS:** server-side `httpx` → usually no Streamlit origin needed on the API.
+- **Health:** sidebar **Check health** or `curl {BACKEND_URL}/health`.
 
 ## Related
 

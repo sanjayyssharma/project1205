@@ -7,7 +7,7 @@ Foundations (Phase 0), **Phase 1 data plane**, **Phase 2 retrieval**, **Phase 3 
 - **`phase3/`** — Groq (OpenAI-compatible) JSON rank + explanations, parser/validator, deterministic fallback.
 - **`phase4/`** — FastAPI ASGI service: `POST /v1/recommendations`, `GET /health`, `GET /metrics`, CORS, structured errors (no secrets to clients).
 - **`web/`** — Next.js 14 App Router UI: preference form, loading and error states, ranked results (name, cuisines, rating, cost, explanation). In dev, `next.config.mjs` rewrites `/api/backend/*` to the Phase 4 server (default `http://127.0.0.1:8000`) so the browser does not need CORS for same-origin fetches.
-- **`streamlit_app/`** — Phase 7 Streamlit app: same preferences as the API; **server-side `httpx`** to `BACKEND_URL` only (no Groq keys in Streamlit).
+- **`streamlit_app/`** — Phase 7 Streamlit UI; **recommended deploy:** FastAPI on [Railway](https://railway.app) + Streamlit on [Streamlit Cloud](https://share.streamlit.io) (`BACKEND_MODE=http`). Optional all-in-one (`BACKEND_MODE=local`).
 - **Phase 6** — See `docs/operations.md`: request IDs + access logs, Groq timeout/retries, prompt-size guard (413), optional rate limit (429), in-process Prometheus text metrics, ADR in `docs/adr/001-configuration-and-limits.md`.
 
 ## Requirements
@@ -119,20 +119,20 @@ Open http://localhost:3000. The page calls `POST /api/backend/v1/recommendations
 
 Operator guide: **`docs/operations.md`** (limits, failure modes, key rotation, metrics). ADR: **`docs/adr/001-configuration-and-limits.md`**.
 
-### Phase 7 — Streamlit UI (all-in-one deploy)
+### Phase 7 — Streamlit UI
 
-**Main file (Streamlit Cloud):** `streamlit_app/app.py`  
-**Default mode:** backend runs **in-process** inside Streamlit (`BACKEND_MODE=local`) — no separate API host.  
-**Go live:** **[`docs/streamlit-deploy.md`](docs/streamlit-deploy.md)** — set `GROQ_API_KEY` (+ optional `INGEST_LIMIT`) in Streamlit Secrets.
+**Recommended:** **[Railway](https://railway.app) FastAPI** + **[Streamlit Cloud](https://share.streamlit.io)** — see [`docs/streamlit-deploy.md`](docs/streamlit-deploy.md). Root **`Procfile`** starts Uvicorn on `$PORT` for Railway.
+
+**All-in-one:** Streamlit only (`BACKEND_MODE=local`); **`requirements.txt`** includes the full stack.
 
 ```bash
+# Split: API on Railway (or local), Streamlit with BACKEND_MODE=http
 pip install -r requirements.txt
-export GROQ_API_KEY=...
+export BACKEND_MODE=http BACKEND_URL=https://your-service.up.railway.app
 streamlit run streamlit_app/app.py
-# or: make install-streamlit && make streamlit
 ```
 
-Optional **split** mode: run `make api` and set sidebar **Remote HTTP API** or `BACKEND_MODE=http` + `BACKEND_URL`. Use **`requirements-api.txt`** on the API host only.
+Optional **local API:** `make api` + same env with `http://127.0.0.1:8000`.
 
 ## Configuration
 

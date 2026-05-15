@@ -42,7 +42,7 @@ flowchart LR
 
   subgraph surface["Presentation"]
     WEB["Phase 5 — Web UI (Next.js)"]
-    ST["Phase 7 — Streamlit app"]
+    ST["Phase 7 — Streamlit UI"]
   end
 
   HF --> ING --> NORM
@@ -73,7 +73,7 @@ flowchart LR
 | 4 | Backend service | Proper HTTP API: orchestration, validation, errors, secrets on server only |
 | 5 | Web UI | Browser client that calls the backend; no business logic or keys in the browser |
 | 6 | Hardening | Quality checks, limits, production ops, documentation |
-| 7 | Streamlit deployment | Python-hosted UI (Streamlit) calling the same Phase 4 API; packaging and deploy runbooks |
+| 7 | Streamlit + deploy | Streamlit UI (Phase 7); **recommended split:** [Railway](https://railway.app) FastAPI + [Streamlit Cloud](https://share.streamlit.io) UI; optional all-in-one Streamlit |
 
 Phases 2–4 can overlap slightly once Phase 1’s schema is stable, but **do not** send arbitrary rows to the LLM until Phase 2’s candidate set is bounded and validated. The **web UI and Streamlit client must not bypass** the backend: all recommendation traffic goes through Phase 4.
 
@@ -255,34 +255,33 @@ Phases 2–4 can overlap slightly once Phase 1’s schema is stable, but **do no
 
 ---
 
-## 11. Phase 7 — Streamlit deployment (optional UI)
+## 11. Phase 7 — Streamlit UI and deployment
 
-**Goal:** Offer a **Python-native** browser experience for demos, internal tools, or teams that prefer a single-language deploy story, while reusing the same **Phase 4 HTTP contract** as the Next.js client. Deployment targets include **Streamlit Community Cloud**, a **container** (Streamlit + documented `BACKEND_URL`), or a **single host** running both Uvicorn and Streamlit behind a reverse proxy.
+**Goal:** Ship a **Python-native** browser UI that completes the problem-statement path (preferences → ranked list with explanations). **Recommended production split:** host **Phase 4 FastAPI on [Railway](https://railway.app)** and **Streamlit on [Streamlit Community Cloud](https://share.streamlit.io)** — Streamlit calls the API with **server-side `httpx`** (`BACKEND_MODE=http`, `BACKEND_URL` = Railway public URL). **Alternative:** **all-in-one** Streamlit Cloud (in-process `RecommendationService`, no separate host) for demos or minimal ops.
 
 **Architecture**
 
-- **Streamlit app:** `st.form` / widgets for the same preference fields as [problemstatement.md](./problemstatement.md) (location, budget, cuisine, min rating, optional notes, include-unknown-cost, optional max candidates); `st.spinner` / `st.error` for loading and API error bodies (`error`, `message`, `detail`).
-- **Transport:** server-side HTTP only — use **`httpx`** or **`requests`** from the Streamlit process to `POST {BACKEND_URL}/v1/recommendations` with JSON. **No** Groq keys, Parquet paths, or direct `rank_with_groq` calls from Streamlit session code (keeps one security boundary: Phase 4).
-- **Configuration:** `BACKEND_URL` (or `API_BASE_URL`) from **environment** or Streamlit secrets manager; never hard-code production URLs in source.
-- **Deployment:** document process for chosen host (e.g. freeze `requirements.txt` / `pyproject.toml` extras, `streamlit run app.py`, health check against Phase 4 `GET /health`, CORS or private network rules if Streamlit and API share an origin vs cross-origin).
-- **Relationship to Phase 5:** Phase 5 (Next.js) and Phase 7 (Streamlit) are **alternative or complementary** presentation layers; both depend on Phase 4. Phase 6 guardrails (timeouts, rate limits, metrics) apply to the API regardless of which UI is used.
+- **Streamlit (frontend):** `st.form` / widgets for the same preference fields as [problemstatement.md](./problemstatement.md) (location, budget, cuisine, min rating, optional notes, include-unknown-cost, optional max candidates); `st.spinner` / `st.error` for loading and API error bodies (`error`, `message`, `detail`).
+- **Railway (backend):** Run **Uvicorn + `phase4.app`** as a web service. Railway provides a **public HTTPS URL**; set **`GROQ_API_KEY`**, **`RESTAURANT_SNAPSHOT_PATH`** (or bake Parquet into the image), and optional Phase 6 env vars on the Railway service — **not** in Streamlit when using split mode.
+- **Transport (split deploy):** Streamlit uses **`httpx`** from the Streamlit process to `POST {BACKEND_URL}/v1/recommendations`. **No** Groq keys or Parquet paths in Streamlit secrets for split mode (only `BACKEND_URL` + `BACKEND_MODE=http`). **CORS:** not required for browser→API when using server-side `httpx`; if you ever call the API from the browser, add Streamlit’s origin to `CORS_ORIGINS` on Railway.
+- **Configuration:** `BACKEND_URL` / `API_BASE_URL` in Streamlit secrets; `BACKEND_MODE=http` for Railway split. **All-in-one:** `BACKEND_MODE=local` + `GROQ_API_KEY` (+ optional `INGEST_LIMIT`) in Streamlit secrets — see [`streamlit-deploy.md`](./streamlit-deploy.md).
+- **Relationship to Phase 5:** Phase 5 (Next.js) and Phase 7 (Streamlit) are **alternative or complementary** UIs; both consume Phase 4. Phase 6 guardrails apply on whichever host runs the ASGI app (Railway or in-process).
 
 **Deliverables**
 
-- Runnable Streamlit entrypoint (e.g. `streamlit run …`) documented in README or `docs/operations.md`.
-- Clear **ops checklist**: API must be reachable from Streamlit runtime; `CORS_ORIGINS` must allow Streamlit’s public origin if the browser calls the API directly from the client (prefer **server-side** `httpx` from Streamlit to avoid exposing a second CORS surface unless intentional).
+- Documented **Railway → Streamlit** flow: repo root service, build/start, env vars, health check, then Streamlit secrets pointing at the Railway URL.
+- Runnable Streamlit entrypoint (`streamlit_app/app.py`) and optional **Procfile** (or equivalent) for Railway Uvicorn.
+- Ops checklist: API reachable from Streamlit Cloud egress; snapshot + Groq on Railway only for split mode.
 
 **Implementation (this repo)**
 
-- `streamlit_app/app.py` — `st.form` + results; sidebar mode (**local** in-process vs **http** remote).
-- `streamlit_app/local_backend.py` — calls `RecommendationService` directly (all-in-one Streamlit Cloud deploy).
-- `streamlit_app/bootstrap.py` — HF ingest on first run if Parquet missing (`INGEST_LIMIT`).
-- `streamlit_app/client.py` — `run_recommendations()` routes local/http; httpx client for split deploy.
-- Root `requirements.txt` includes full backend stack for Streamlit Cloud. Tests: `tests/test_streamlit_client.py`, `tests/test_streamlit_backend_mode.py`.
+- **Split (Railway + Streamlit):** Root **`Procfile`** for `web: uvicorn … --port $PORT`. **`requirements-api.txt`** on Railway build. Streamlit sidebar **Remote HTTP API** or secrets `BACKEND_MODE=http`, `BACKEND_URL=https://…up.railway.app`.
+- **All-in-one Streamlit:** `streamlit_app/local_backend.py`, `bootstrap.py`, root **`requirements.txt`** with full stack; see [`streamlit-deploy.md`](./streamlit-deploy.md).
+- `streamlit_app/client.py` — `run_recommendations()` routes **local** vs **http**.
 
 **Exit criteria**
 
-- A user can complete the full pipeline (preferences → ranked list with explanations) via Streamlit with **all** LLM and dataset access confined to the Phase 4 backend.
+- A user completes the pipeline via Streamlit; with **split deploy**, all LLM and dataset access stay on the **Railway** FastAPI service. With **all-in-one**, they stay in-process on Streamlit Cloud.
 
 ---
 
@@ -302,7 +301,7 @@ flowchart TB
   P0 --> P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7
 ```
 
-Phase 7 is placed **after** Phase 6 so API limits, metrics, and ops docs are stable before adding a second UI. Streamlit only needs **Phase 4’s** contract at runtime; it does not replace Phase 5 unless you choose to ship Streamlit alone.
+Phase 7 is placed **after** Phase 6 so API limits, metrics, and ops docs are stable before shipping the Streamlit surface. **Recommended split:** FastAPI on **Railway**, UI on **Streamlit Cloud** (`BACKEND_MODE=http`). **Alternative:** all-in-one Streamlit (`BACKEND_MODE=local`) without Railway.
 
 ---
 
@@ -325,6 +324,6 @@ Phase 7 is placed **after** Phase 6 so API limits, metrics, and ops docs are sta
 | Output fields | 3–5, 7 |
 | Open design choices (stack, budget map, N) | 0, 2, 6 |
 | Secrets + transport security | 4–6 |
-| Alternative UI / Streamlit deploy | 7 |
+| Alternative UI / Streamlit + Railway deploy | 7 |
 
 For the authoritative product description, use [problemstatement.md](./problemstatement.md); this file is the **implementation roadmap and module boundary** view.
