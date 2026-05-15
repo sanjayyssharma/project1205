@@ -1,0 +1,4 @@
+# Streamlit Community Cloud (Phase 7 UI only — calls a hosted FastAPI backend).
+# The API is deployed separately; see docs/streamlit-deploy.md and requirements-api.txt.
+streamlit>=1.28.0
+httpx>=0.27.0

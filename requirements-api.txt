@@ -1,0 +1,10 @@
+# Backend API host (Render, Fly, Railway, etc.) — install from repo root:
+#   pip install -r requirements-api.txt
+# Ship restaurants.parquet with the service or set RESTAURANT_SNAPSHOT_PATH.
+pydantic-settings>=2.2.0
+datasets>=2.16.0
+pandas>=2.0.0
+pyarrow>=14.0.0
+openai>=1.40.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0

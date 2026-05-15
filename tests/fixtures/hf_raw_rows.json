@@ -1,0 +1,42 @@
+[
+  {
+    "name": "Dup A",
+    "location": "Banashankari",
+    "listed_in(city)": "Bangalore",
+    "cuisines": "Italian, Cafe",
+    "rate": "3.0/5",
+    "votes": 200,
+    "approx_cost(for two people)": "500",
+    "address": "Same Addr"
+  },
+  {
+    "name": "Dup A",
+    "location": "Banashankari",
+    "listed_in(city)": "Bangalore",
+    "cuisines": "Italian, Cafe",
+    "rate": "4.2/5",
+    "votes": 10,
+    "approx_cost(for two people)": "500",
+    "address": "Same Addr"
+  },
+  {
+    "name": "",
+    "location": "Nowhere",
+    "listed_in(city)": "Bangalore",
+    "cuisines": "Chinese",
+    "rate": "4.0/5",
+    "votes": 1,
+    "approx_cost(for two people)": "800",
+    "address": "x"
+  },
+  {
+    "name": "Zebra",
+    "location": "Indiranagar",
+    "listed_in(city)": "Bangalore",
+    "cuisines": "Thai",
+    "rate": "4.2/5",
+    "votes": 50,
+    "approx_cost(for two people)": "1,200",
+    "address": "Z-1"
+  }
+]
