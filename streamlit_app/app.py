@@ -1,13 +1,12 @@
 """
-Phase 7 Streamlit UI — all-in-one (in-process backend) or remote FastAPI.
+Phase 7 — Streamlit UI (updated).
 
-Streamlit Cloud (recommended):
-  - Main file: streamlit_app/app.py
-  - Secrets: GROQ_API_KEY, optional INGEST_LIMIT=500
-  - BACKEND_MODE=local (default) — no separate API host required
+Recommended production: **Railway (FastAPI)** + **Streamlit Cloud** — sidebar
+**Remote HTTP API**, secrets ``BACKEND_MODE=http`` and ``BACKEND_URL=https://…railway.app``.
 
-Local split deploy:
-  - BACKEND_MODE=http and BACKEND_URL=http://127.0.0.1:8000 with ``make api`` running
+Alternative: **In-process** (``BACKEND_MODE=local`` + ``GROQ_API_KEY``) — no Railway.
+
+See ``docs/streamlit-deploy.md`` and ``railway.toml`` (API service).
 """
 
 from __future__ import annotations
@@ -25,6 +24,7 @@ from streamlit_app.client import (
     RecommendationApiError,
     configured_backend_url,
     default_backend_url,
+    is_local_backend_url,
     resolve_backend_mode,
     run_recommendations,
 )
@@ -49,22 +49,38 @@ def _bootstrap_local_backend() -> str:
 
 st.title("Restaurant recommendations")
 st.caption(
-    "All-in-one Streamlit deploy: backend runs **in-process** by default. "
-    "Set `BACKEND_MODE=http` + `BACKEND_URL` only if you host FastAPI separately."
+    "**Phase 7 (recommended):** FastAPI on [Railway](https://railway.app) + this UI on "
+    "[Streamlit Cloud](https://share.streamlit.io) — use **Remote HTTP API** and set "
+    "`BACKEND_URL` in Secrets. **In-process** = all-in-one (demos; needs `GROQ_API_KEY` here)."
+)
+st.markdown(
+    "Deploy steps: [`docs/streamlit-deploy.md`](https://github.com/sanjayyssharma/project1205/blob/main/docs/streamlit-deploy.md) · "
+    "API config: [`railway.toml`](https://github.com/sanjayyssharma/project1205/blob/main/railway.toml)"
 )
 
 with st.sidebar:
     st.subheader("Backend")
     mode = st.radio(
         "Mode",
-        options=["local", "http"],
-        format_func=lambda x: "In-process (Streamlit)" if x == "local" else "Remote HTTP API",
-        index=0 if _mode_default == "local" else 1,
-        help="Use **local** on Streamlit Cloud. Use **http** only with a separate public API.",
+        options=["http", "local"],
+        format_func=lambda x: "Remote HTTP API (Railway)" if x == "http" else "In-process (all-in-one)",
+        index=0 if _mode_default == "http" else 1,
+        help="Production: call your **Railway** FastAPI URL. Local / demos: run ranking inside Streamlit.",
     )
 
-    if mode == "local":
-        st.info("Backend + UI on this app. Requires `GROQ_API_KEY` in Secrets.")
+    if mode == "http":
+        st.info(
+            "Set Streamlit **Secrets**: `BACKEND_MODE=http`, `BACKEND_URL=https://…up.railway.app`. "
+            "Put `GROQ_API_KEY` and Parquet on **Railway** only — not here."
+        )
+        default = configured_backend_url() or default_backend_url()
+        base_url = st.text_input(
+            "API base URL",
+            value=default,
+            help="Public https URL from Railway (e.g. *.up.railway.app), no /v1 suffix.",
+        )
+    else:
+        st.info("All-in-one: `GROQ_API_KEY` (+ optional `INGEST_LIMIT`) in Streamlit Secrets.")
         if st.button("Prepare dataset (first run)"):
             with st.spinner("Loading Hugging Face snapshot if needed…"):
                 snap = _bootstrap_local_backend()
@@ -76,13 +92,6 @@ with st.sidebar:
             except Exception as exc:  # noqa: BLE001
                 st.warning(f"Dataset not ready yet: {exc}")
         base_url = ""
-    else:
-        default = configured_backend_url() or default_backend_url()
-        base_url = st.text_input(
-            "API base URL",
-            value=default,
-            help="Public FastAPI URL, e.g. https://your-api.onrender.com",
-        )
 
     if st.button("Check health"):
         try:
@@ -92,7 +101,7 @@ with st.sidebar:
             else:
                 import httpx
 
-                url = (base_url or default_backend_url()).rstrip("/")
+                url = (base_url or configured_backend_url() or default_backend_url()).rstrip("/")
                 with httpx.Client(timeout=60.0) as client:
                     h = client.get(f"{url}/health")
                 if h.is_success:
@@ -132,6 +141,21 @@ if submitted:
                 st.error("Max candidates must be an integer (or leave blank).")
                 st.stop()
 
+        http_base = ""
+        if mode == "http":
+            http_base = (base_url or "").strip().rstrip("/") or (configured_backend_url() or "")
+            if not http_base:
+                st.error(
+                    "Remote HTTP mode needs a public API URL. Add `BACKEND_URL` in Streamlit Secrets "
+                    "(your Railway `https://…` URL) or paste it in the sidebar."
+                )
+                st.stop()
+            if is_local_backend_url(http_base):
+                st.warning(
+                    "API URL is localhost — that only works if FastAPI runs on the same machine. "
+                    "On Streamlit Cloud, use your Railway public URL instead."
+                )
+
         payload = {
             "location": location.strip(),
             "budget": None if not budget else budget,
@@ -142,13 +166,13 @@ if submitted:
             "max_candidates": max_candidates,
         }
         try:
-            label = "Ranking…" if mode == "local" else "Calling API…"
+            label = "Calling Railway API…" if mode == "http" else "Ranking…"
             with st.spinner(label):
                 if mode == "local":
                     _bootstrap_local_backend()
                 data = run_recommendations(
                     payload,
-                    base_url=base_url.strip() or None,
+                    base_url=http_base or None,
                     mode=mode,
                 )
         except RecommendationApiError as exc:

@@ -142,9 +142,9 @@ def post_recommendations(
     except httpx.ConnectError as exc:
         hint = (
             f"Cannot connect to {base}. "
-            "On Streamlit Cloud, set BACKEND_URL in App settings → Secrets to your **public** "
-            "FastAPI URL (e.g. https://your-app.onrender.com). "
-            "localhost only works when the API runs on the same machine as Streamlit."
+            "Set `BACKEND_URL` in Streamlit Secrets to your **public** API URL "
+            "(e.g. `https://…up.railway.app` from Railway, or Render/Fly). "
+            "localhost only works when FastAPI runs on the same machine as Streamlit."
         )
         raise RecommendationApiError(hint, 0, {"error": "connection_refused"}) from exc
     text = r.text

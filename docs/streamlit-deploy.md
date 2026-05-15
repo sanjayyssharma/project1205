@@ -12,11 +12,10 @@
 
 | Field | Value |
 |--------|--------|
-| **Root directory** | *(empty)* — repo root (folder with `pyproject.toml`, `phase4/`) |
-| **Build command** | `pip install -r requirements-api.txt && pip install -e .` |
-| **Start command** | `uvicorn phase4.app:app --host 0.0.0.0 --port $PORT` |
-
-If you use a **Procfile** at repo root, Railway can pick it up; the repo includes one with the same Uvicorn command.
+| **Root directory** | *(empty)* — repo root |
+| **Config as code** | Root **`railway.toml`** sets `buildCommand` (`requirements-api.txt` + `pip install -e .`) and `startCommand` (Uvicorn on `$PORT`). **`Procfile`** is an alternative if you prefer Heroku-style starts. |
+| **Build command** (if not using `railway.toml`) | `pip install -r requirements-api.txt && pip install -e .` |
+| **Start command** (if not using `railway.toml`) | `uvicorn phase4.app:app --host 0.0.0.0 --port $PORT` |
 
 ### Environment variables (Railway → Variables)
 

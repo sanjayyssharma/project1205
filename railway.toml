@@ -1,0 +1,12 @@
+# Railway config-as-code — FastAPI (Phase 4) service.
+# https://docs.railway.com/config-as-code/reference
+# Streamlit UI: Streamlit Cloud + BACKEND_MODE=http (see docs/streamlit-deploy.md).
+
+[build]
+buildCommand = "pip install -r requirements-api.txt && pip install -e ."
+
+[deploy]
+startCommand = "uvicorn phase4.app:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"

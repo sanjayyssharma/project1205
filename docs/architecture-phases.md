@@ -275,7 +275,7 @@ Phases 2–4 can overlap slightly once Phase 1’s schema is stable, but **do no
 
 **Implementation (this repo)**
 
-- **Split (Railway + Streamlit):** Root **`Procfile`** for `web: uvicorn … --port $PORT`. **`requirements-api.txt`** on Railway build. Streamlit sidebar **Remote HTTP API** or secrets `BACKEND_MODE=http`, `BACKEND_URL=https://…up.railway.app`.
+- **Split (Railway + Streamlit):** Root **`railway.toml`** (build + start + healthcheck) and **`Procfile`** for Uvicorn on `$PORT`. **`requirements-api.txt`** on Railway. Streamlit Secrets: `BACKEND_MODE=http`, `BACKEND_URL=https://…up.railway.app`.
 - **All-in-one Streamlit:** `streamlit_app/local_backend.py`, `bootstrap.py`, root **`requirements.txt`** with full stack; see [`streamlit-deploy.md`](./streamlit-deploy.md).
 - `streamlit_app/client.py` — `run_recommendations()` routes **local** vs **http**.
 

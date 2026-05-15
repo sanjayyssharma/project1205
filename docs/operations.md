@@ -101,12 +101,7 @@ The bundled rate limiter is **in-memory per process**. Multiple replicas do **no
 
 ## Phase 7 — Streamlit UI
 
-- **Deploy runbook:** [`streamlit-deploy.md`](./streamlit-deploy.md) — **recommended:** [Railway](https://railway.app) (FastAPI) + [Streamlit Cloud](https://share.streamlit.io) (UI); optional all-in-one Streamlit.
-- **Railway:** repo root, **`Procfile`** + `requirements-api.txt`; set `GROQ_API_KEY`, `RESTAURANT_SNAPSHOT_PATH` on the service.
-- **Streamlit (split):** Secrets `BACKEND_MODE=http`, `BACKEND_URL=https://…up.railway.app` (no Groq key in Streamlit).
-- **Package:** `streamlit_app/` — `streamlit run streamlit_app/app.py` (or `make streamlit`).
-- **CORS:** server-side `httpx` → usually no Streamlit origin needed on the API.
-- **Health:** sidebar **Check health** or `curl {BACKEND_URL}/health`.
+- **Phase 7** — `streamlit_app/` + **`railway.toml`** / **`Procfile`** for API; see [`streamlit-deploy.md`](./streamlit-deploy.md).
 
 ## Related
 
