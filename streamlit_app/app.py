@@ -20,19 +20,35 @@ if str(_repo_root) not in sys.path:
 
 import streamlit as st
 
-from streamlit_app.client import RecommendationApiError, default_backend_url, post_recommendations
+from streamlit_app.client import (
+    RecommendationApiError,
+    default_backend_url,
+    is_local_backend_url,
+    post_recommendations,
+)
 
 st.set_page_config(page_title="Restaurant recommendations", layout="wide")
 st.title("Restaurant recommendations")
 st.caption(
-    "Phase 7 — Python UI. Requests use **httpx** from this process to your FastAPI backend only "
-    "(set `BACKEND_URL` or `API_BASE_URL`)."
+    "Phase 7 — Python UI. Calls your **hosted** FastAPI API via httpx "
+    "(Streamlit Cloud: set `BACKEND_URL` under App settings → Secrets)."
 )
+
+default = default_backend_url()
+if is_local_backend_url(default):
+    st.warning(
+        "**API URL is localhost.** Streamlit Cloud cannot reach your laptop. "
+        "Deploy the FastAPI backend (see `docs/streamlit-deploy.md`), then set "
+        "**Secrets → `BACKEND_URL` = `https://your-api.onrender.com`** and reboot the app."
+    )
 
 with st.sidebar:
     st.subheader("Backend")
-    default = default_backend_url()
-    base_url = st.text_input("API base URL", value=default, help="Example: http://127.0.0.1:8000")
+    base_url = st.text_input(
+        "API base URL",
+        value=default,
+        help="Public HTTPS URL of your Phase 4 API (not localhost on Streamlit Cloud).",
+    )
     if st.button("Check health"):
         import httpx
 

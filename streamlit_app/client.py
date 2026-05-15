@@ -42,10 +42,35 @@ def _summarize_error_body(status: int, body: Any) -> str:
 
 
 def default_backend_url() -> str:
+    """Resolve API base URL: Streamlit secrets → env vars → local dev default."""
     import os
+
+    for getter in (_backend_url_from_streamlit_secrets,):
+        url = getter()
+        if url:
+            return url
 
     raw = (os.environ.get("BACKEND_URL") or os.environ.get("API_BASE_URL") or "http://127.0.0.1:8000").strip()
     return raw.rstrip("/")
+
+
+def _backend_url_from_streamlit_secrets() -> Optional[str]:
+    try:
+        import streamlit as st
+
+        for key in ("BACKEND_URL", "API_BASE_URL"):
+            if key in st.secrets:
+                val = str(st.secrets[key]).strip()
+                if val:
+                    return val.rstrip("/")
+    except Exception:
+        pass
+    return None
+
+
+def is_local_backend_url(url: str) -> bool:
+    u = url.lower()
+    return "127.0.0.1" in u or "localhost" in u
 
 
 def post_recommendations(
@@ -63,8 +88,17 @@ def post_recommendations(
     url = f"{base}/v1/recommendations"
     rid = str(uuid.uuid4())
     headers = {"Content-Type": "application/json", "X-Request-ID": rid}
-    with httpx.Client(timeout=timeout) as client:
-        r = client.post(url, json=body, headers=headers)
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            r = client.post(url, json=body, headers=headers)
+    except httpx.ConnectError as exc:
+        hint = (
+            f"Cannot connect to {base}. "
+            "On Streamlit Cloud, set BACKEND_URL in App settings → Secrets to your **public** "
+            "FastAPI URL (e.g. https://your-app.onrender.com). "
+            "localhost only works when the API runs on the same machine as Streamlit."
+        )
+        raise RecommendationApiError(hint, 0, {"error": "connection_refused"}) from exc
     text = r.text
     try:
         parsed: Any = json.loads(text) if text else None
