@@ -10,6 +10,14 @@ Run from repo root::
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Streamlit Cloud runs this file with `streamlit_app/` on sys.path, not the repo root.
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
+
 import streamlit as st
 
 from streamlit_app.client import RecommendationApiError, default_backend_url, post_recommendations
