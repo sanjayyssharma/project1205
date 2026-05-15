@@ -1,4 +1,9 @@
-# Streamlit Community Cloud (Phase 7 UI only — calls a hosted FastAPI backend).
-# The API is deployed separately; see docs/streamlit-deploy.md and requirements-api.txt.
+# Streamlit Community Cloud — all-in-one (UI + in-process backend).
+# See docs/streamlit-deploy.md. For split API host only, use requirements-api.txt on that service.
 streamlit>=1.28.0
 httpx>=0.27.0
+pydantic-settings>=2.2.0
+datasets>=2.16.0
+pandas>=2.0.0
+pyarrow>=14.0.0
+openai>=1.40.0

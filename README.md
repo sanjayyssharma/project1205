@@ -119,24 +119,20 @@ Open http://localhost:3000. The page calls `POST /api/backend/v1/recommendations
 
 Operator guide: **`docs/operations.md`** (limits, failure modes, key rotation, metrics). ADR: **`docs/adr/001-configuration-and-limits.md`**.
 
-### Phase 7 — Streamlit UI
-
-Python-only browser UI; all ranking stays on the FastAPI process.
+### Phase 7 — Streamlit UI (all-in-one deploy)
 
 **Main file (Streamlit Cloud):** `streamlit_app/app.py`  
-**Go live:** see **[`docs/streamlit-deploy.md`](docs/streamlit-deploy.md)** (API + Streamlit Community Cloud). Root **`requirements.txt`** is for the Streamlit app only; use **`requirements-api.txt`** for the FastAPI host.
+**Default mode:** backend runs **in-process** inside Streamlit (`BACKEND_MODE=local`) — no separate API host.  
+**Go live:** **[`docs/streamlit-deploy.md`](docs/streamlit-deploy.md)** — set `GROQ_API_KEY` (+ optional `INGEST_LIMIT`) in Streamlit Secrets.
 
 ```bash
-make install-streamlit    # or: pip install -r requirements.txt
-# Terminal 1: API
-make api
-# Terminal 2: Streamlit (uses BACKEND_URL or API_BASE_URL, default http://127.0.0.1:8000)
-export BACKEND_URL=http://127.0.0.1:8000
-make streamlit
-# or: streamlit run streamlit_app/app.py --server.port 8501
+pip install -r requirements.txt
+export GROQ_API_KEY=...
+streamlit run streamlit_app/app.py
+# or: make install-streamlit && make streamlit
 ```
 
-Open http://localhost:8501. Streamlit calls **`POST {BACKEND_URL}/v1/recommendations`** from the **Python server** (`httpx`), so you do **not** need to add Streamlit’s origin to `CORS_ORIGINS` for that path. Use the sidebar **Check health** to verify connectivity.
+Optional **split** mode: run `make api` and set sidebar **Remote HTTP API** or `BACKEND_MODE=http` + `BACKEND_URL`. Use **`requirements-api.txt`** on the API host only.
 
 ## Configuration
 

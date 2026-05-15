@@ -274,9 +274,11 @@ Phases 2–4 can overlap slightly once Phase 1’s schema is stable, but **do no
 
 **Implementation (this repo)**
 
-- `streamlit_app/app.py` — `st.form` + results; sidebar health check.
-- `streamlit_app/client.py` — `httpx` `POST /v1/recommendations`, `X-Request-ID`, structured error parsing; `BACKEND_URL` / `API_BASE_URL`.
-- Optional deps: `pip install -e ".[streamlit]"`; `make streamlit` (port 8501). Tests: `tests/test_streamlit_client.py`.
+- `streamlit_app/app.py` — `st.form` + results; sidebar mode (**local** in-process vs **http** remote).
+- `streamlit_app/local_backend.py` — calls `RecommendationService` directly (all-in-one Streamlit Cloud deploy).
+- `streamlit_app/bootstrap.py` — HF ingest on first run if Parquet missing (`INGEST_LIMIT`).
+- `streamlit_app/client.py` — `run_recommendations()` routes local/http; httpx client for split deploy.
+- Root `requirements.txt` includes full backend stack for Streamlit Cloud. Tests: `tests/test_streamlit_client.py`, `tests/test_streamlit_backend_mode.py`.
 
 **Exit criteria**
 

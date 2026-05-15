@@ -59,10 +59,13 @@ def _backend_url_from_streamlit_secrets() -> Optional[str]:
         import streamlit as st
 
         for key in ("BACKEND_URL", "API_BASE_URL"):
-            if key in st.secrets:
-                val = str(st.secrets[key]).strip()
-                if val:
-                    return val.rstrip("/")
+            try:
+                if key in st.secrets:
+                    val = str(st.secrets[key]).strip()
+                    if val:
+                        return val.rstrip("/")
+            except Exception:
+                continue
     except Exception:
         pass
     return None
@@ -71,6 +74,51 @@ def _backend_url_from_streamlit_secrets() -> Optional[str]:
 def is_local_backend_url(url: str) -> bool:
     u = url.lower()
     return "127.0.0.1" in u or "localhost" in u
+
+
+def configured_backend_url() -> Optional[str]:
+    """Non-default API URL from secrets/env only (not ``127.0.0.1`` fallback)."""
+    import os
+
+    url = _backend_url_from_streamlit_secrets()
+    if url:
+        return url
+    env = (os.environ.get("BACKEND_URL") or os.environ.get("API_BASE_URL") or "").strip()
+    return env.rstrip("/") if env else None
+
+
+def resolve_backend_mode() -> str:
+    """
+    ``local`` — run Phase 4 ``RecommendationService`` in-process (Streamlit all-in-one).
+    ``http`` — call remote FastAPI at ``BACKEND_URL``.
+    """
+    from streamlit_app.settings_loader import get_config_str
+
+    mode = get_config_str("BACKEND_MODE", "").lower()
+    if mode in ("http", "remote"):
+        return "http"
+    if mode in ("local", "inprocess", "in-process"):
+        return "local"
+    url = configured_backend_url()
+    if url and not is_local_backend_url(url):
+        return "http"
+    return "local"
+
+
+def run_recommendations(
+    body: Dict[str, Any],
+    *,
+    base_url: Optional[str] = None,
+    mode: Optional[str] = None,
+    timeout: float = 120.0,
+) -> Dict[str, Any]:
+    """Recommend via in-process backend (default) or HTTP to FastAPI."""
+    m = (mode or resolve_backend_mode()).lower()
+    if m == "local":
+        from streamlit_app.local_backend import recommend_local
+
+        return recommend_local(body)
+    return post_recommendations(body, base_url=base_url, timeout=timeout)
 
 
 def post_recommendations(

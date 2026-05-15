@@ -1,11 +1,13 @@
 """
-Phase 7 Streamlit UI — calls Phase 4 only (server-side httpx).
+Phase 7 Streamlit UI — all-in-one (in-process backend) or remote FastAPI.
 
-Run from repo root::
+Streamlit Cloud (recommended):
+  - Main file: streamlit_app/app.py
+  - Secrets: GROQ_API_KEY, optional INGEST_LIMIT=500
+  - BACKEND_MODE=local (default) — no separate API host required
 
-    pip install -e ".[streamlit]"
-    export BACKEND_URL=http://127.0.0.1:8000   # optional
-    streamlit run streamlit_app/app.py
+Local split deploy:
+  - BACKEND_MODE=http and BACKEND_URL=http://127.0.0.1:8000 with ``make api`` running
 """
 
 from __future__ import annotations
@@ -13,7 +15,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Streamlit Cloud runs this file with `streamlit_app/` on sys.path, not the repo root.
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
@@ -22,45 +23,84 @@ import streamlit as st
 
 from streamlit_app.client import (
     RecommendationApiError,
+    configured_backend_url,
     default_backend_url,
-    is_local_backend_url,
-    post_recommendations,
+    resolve_backend_mode,
+    run_recommendations,
 )
+from streamlit_app.local_backend import health_local
+from streamlit_app.settings_loader import apply_streamlit_secrets_to_environ, load_settings
 
 st.set_page_config(page_title="Restaurant recommendations", layout="wide")
+
+apply_streamlit_secrets_to_environ()
+_mode_default = resolve_backend_mode()
+
+
+@st.cache_resource
+def _bootstrap_local_backend() -> str:
+    """One-time snapshot ensure per container (ingest from HF if Parquet missing)."""
+    from streamlit_app.bootstrap import ensure_snapshot
+
+    settings = load_settings()
+    path = ensure_snapshot(settings)
+    return str(path)
+
+
 st.title("Restaurant recommendations")
 st.caption(
-    "Phase 7 — Python UI. Calls your **hosted** FastAPI API via httpx "
-    "(Streamlit Cloud: set `BACKEND_URL` under App settings → Secrets)."
+    "All-in-one Streamlit deploy: backend runs **in-process** by default. "
+    "Set `BACKEND_MODE=http` + `BACKEND_URL` only if you host FastAPI separately."
 )
-
-default = default_backend_url()
-if is_local_backend_url(default):
-    st.warning(
-        "**API URL is localhost.** Streamlit Cloud cannot reach your laptop. "
-        "Deploy the FastAPI backend (see `docs/streamlit-deploy.md`), then set "
-        "**Secrets → `BACKEND_URL` = `https://your-api.onrender.com`** and reboot the app."
-    )
 
 with st.sidebar:
     st.subheader("Backend")
-    base_url = st.text_input(
-        "API base URL",
-        value=default,
-        help="Public HTTPS URL of your Phase 4 API (not localhost on Streamlit Cloud).",
+    mode = st.radio(
+        "Mode",
+        options=["local", "http"],
+        format_func=lambda x: "In-process (Streamlit)" if x == "local" else "Remote HTTP API",
+        index=0 if _mode_default == "local" else 1,
+        help="Use **local** on Streamlit Cloud. Use **http** only with a separate public API.",
     )
-    if st.button("Check health"):
-        import httpx
 
+    if mode == "local":
+        st.info("Backend + UI on this app. Requires `GROQ_API_KEY` in Secrets.")
+        if st.button("Prepare dataset (first run)"):
+            with st.spinner("Loading Hugging Face snapshot if needed…"):
+                snap = _bootstrap_local_backend()
+            st.success(f"Ready: {snap}")
+        else:
+            try:
+                snap = _bootstrap_local_backend()
+                st.caption(f"Snapshot: `{snap}`")
+            except Exception as exc:  # noqa: BLE001
+                st.warning(f"Dataset not ready yet: {exc}")
+        base_url = ""
+    else:
+        default = configured_backend_url() or default_backend_url()
+        base_url = st.text_input(
+            "API base URL",
+            value=default,
+            help="Public FastAPI URL, e.g. https://your-api.onrender.com",
+        )
+
+    if st.button("Check health"):
         try:
-            with httpx.Client(timeout=10.0) as client:
-                h = client.get(f"{base_url.rstrip('/')}/health")
-            if h.is_success:
+            if mode == "local":
+                st.json(health_local())
                 st.success("OK")
-                st.json(h.json())
             else:
-                st.error(f"HTTP {h.status_code}")
-                st.text(h.text[:2000])
+                import httpx
+
+                url = (base_url or default_backend_url()).rstrip("/")
+                with httpx.Client(timeout=60.0) as client:
+                    h = client.get(f"{url}/health")
+                if h.is_success:
+                    st.success("OK")
+                    st.json(h.json())
+                else:
+                    st.error(f"HTTP {h.status_code}")
+                    st.text(h.text[:2000])
         except Exception as exc:  # noqa: BLE001
             st.exception(exc)
 
@@ -90,7 +130,6 @@ if submitted:
                 max_candidates = int(raw_mc)
             except ValueError:
                 st.error("Max candidates must be an integer (or leave blank).")
-                max_candidates = None
                 st.stop()
 
         payload = {
@@ -103,8 +142,15 @@ if submitted:
             "max_candidates": max_candidates,
         }
         try:
-            with st.spinner("Calling API…"):
-                data = post_recommendations(payload, base_url=base_url.strip() or None)
+            label = "Ranking…" if mode == "local" else "Calling API…"
+            with st.spinner(label):
+                if mode == "local":
+                    _bootstrap_local_backend()
+                data = run_recommendations(
+                    payload,
+                    base_url=base_url.strip() or None,
+                    mode=mode,
+                )
         except RecommendationApiError as exc:
             st.error(str(exc))
             if exc.body is not None and exc.body != str(exc):
@@ -123,7 +169,7 @@ if submitted:
             groq = data.get("groq")
             if isinstance(groq, dict):
                 if groq.get("used_fallback"):
-                    st.warning("Ranking used fallback (see API `groq.detail`).")
+                    st.warning("Ranking used fallback (see `groq.detail`).")
                 pt, ct = groq.get("prompt_tokens"), groq.get("completion_tokens")
                 if pt is not None or ct is not None:
                     st.caption(f"Tokens (prompt / completion): {pt} / {ct}")
@@ -147,9 +193,7 @@ if submitted:
                         cu = ", ".join(str(x) for x in cuisines)
                     else:
                         cu = str(cuisines or "—")
-                    area = ", ".join(
-                        str(x) for x in (row.get("locality"), row.get("city_area")) if x
-                    ) or "—"
+                    area = ", ".join(str(x) for x in (row.get("locality"), row.get("city_area")) if x) or "—"
                     rating = row.get("rating")
                     votes = row.get("votes")
                     cost = row.get("cost_for_two_inr")
